@@ -3,7 +3,12 @@ version: 0.0.1
 cabal-version: >= 1.6 && < 2
 build-type: Simple
 author: Luke Palmer <lrpalmer@gmail.com>
-synopsis: Generation of tags files for haskell, with knowledge of qualified imports and other good stuff
+license: BSD3
+maintainer: Luke Palmer <lrpalmer@gmail.com>
+category: Development
+synopsis: Generates ctags for Haskell, incorporating import lists and qualified imports
+description: Generation of ctags files for Haskell, with knowledge of import lists and qualified imports
+homepage: http://github.com/luqui/hothasktags
 executable hothasktags
     build-depends: 
         base == 4.*,
