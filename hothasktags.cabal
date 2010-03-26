@@ -1,0 +1,13 @@
+name: hothasktags
+version: 0.0.1
+cabal-version: >= 1.6 && < 2
+build-type: Simple
+author: Luke Palmer <lrpalmer@gmail.com>
+synopsis: Generation of tags files for haskell, with knowledge of qualified imports and other good stuff
+executable hothasktags
+    build-depends: 
+        base == 4.*,
+        containers,
+        haskell-src-exts == 1.8.*
+    main-is: Main.hs
+    ghc-options: -W
