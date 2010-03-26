@@ -4,6 +4,7 @@ module Main where
 
 import qualified Language.Haskell.Exts.Annotated as L
 import System.Environment (getArgs)
+import System.IO (hPutStrLn, stderr)
 import qualified Data.Map as Map
 import Control.Monad (forM)
 import Data.List (sort)
@@ -138,13 +139,23 @@ makeTags refFile = map (makeTag refFile) . Map.assocs
 makeDatabase :: [FilePath] -> IO Database
 makeDatabase files = do
     fmap (Map.fromList . concat) . forM files $ \file -> do
-        result <- L.parseFile file
+        result <- L.parseFileWithMode (mode file) file
         case result of
-            L.ParseOk mod@(L.Module _ (Just (L.ModuleHead _ (L.ModuleName _ name) _ _)) _ _ _) -> return [(name, mod)]
+            L.ParseOk mod@(L.Module _ (Just (L.ModuleHead _ (L.ModuleName _ name) _ _)) _ _ _) -> do
+                return [(name, mod)]
             L.ParseFailed loc str -> do
-                putStrLn $ "Parse error: " ++  show loc ++ ": " ++ str
+                hPutStrLn stderr $ "Parse error: " ++  show loc ++ ": " ++ str
                 return []
-            _ -> return []
+            _ -> do
+                return []
+    where
+    mode filename = L.ParseMode {
+        L.parseFilename = filename,
+        L.extensions = [],
+        L.ignoreLanguagePragmas = False,
+        L.ignoreLinePragmas = False,
+        L.fixities = []
+      }
 
 moduleFile :: L.Module L.SrcSpanInfo -> FilePath
 moduleFile (L.Module (L.SrcSpanInfo (L.SrcSpan file _ _ _ _) _) _ _ _ _) = file
