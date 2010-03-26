@@ -92,7 +92,7 @@ exported mod@(L.Module _ (Just (L.ModuleHead _ _ _ (Just (L.ExportSpecList _ spe
     matchesSpec name (L.EAbs _ (L.UnQual _ (L.Ident _ name'))) = name == name'
     matchesSpec name (L.EThingAll _ (L.UnQual _ (L.Ident _ name'))) = name == name' || (name `elem` thingMembers mod name')
     matchesSpec name (L.EThingWith _ (L.UnQual _ (L.Ident _ name')) cnames) = name == name' || any (matchesCName name) cnames
-    matchesSpec _    (L.EModuleContents _ _) = False  -- XXX do this!
+    matchesSpec _ (L.EModuleContents _ (L.ModuleName _ _)) = False  -- XXX wrong, moduleScope handles it though
     matchesSpec _ _ = False
     
     matchesCName name (L.VarName _ (L.Ident _ name')) = name == name'
@@ -101,7 +101,7 @@ exported mod@(L.Module _ (Just (L.ModuleHead _ _ _ (Just (L.ExportSpecList _ spe
 exported _ _ = True
 
 moduleScope :: Database -> L.Module L.SrcSpanInfo -> Map.Map String Defn
-moduleScope db mod@(L.Module _ _ _ imports _) = localDecls mod `Map.union` Map.unions (map extractImport imports)
+moduleScope db mod@(L.Module _ modhead _ imports _) = localDecls mod `Map.union` Map.unions (map extractImport imports)
     where
     extractImport decl@(L.ImportDecl { L.importModule = L.ModuleName _ name, L.importSpecs = spec }) = 
         Map.unions [
@@ -109,7 +109,8 @@ moduleScope db mod@(L.Module _ _ _ imports _) = localDecls mod `Map.union` Map.u
             Map.mapKeys ((name ++ ".") ++) names,
             case L.importAs decl of
                 Nothing -> Map.empty
-                Just (L.ModuleName _ name') -> Map.mapKeys ((name' ++ ".") ++) names
+                Just (L.ModuleName _ name') -> Map.mapKeys ((name' ++ ".") ++) names,
+            extraExports
         ]
         
         where
@@ -121,13 +122,18 @@ moduleScope db mod@(L.Module _ _ _ imports _) = localDecls mod `Map.union` Map.u
 
         specName (L.IVar _ (L.Ident _ name)) = [name]
         specName (L.IAbs _ (L.Ident _ name)) = [name]
-        specName (L.IThingAll _ (L.Ident _ name)) = [name]  -- incorrect, need its member names
+        specName (L.IThingAll _ (L.Ident _ name)) = [name]  -- XXX incorrect, need its member names
         specName (L.IThingWith _ (L.Ident _ name) cnames) = name : concatMap cname cnames
         specName _ = []
 
         cname (L.VarName _ (L.Ident _ name)) = [name]
         cname (L.ConName _ (L.Ident _ name)) = [name]
         cname _ = []
+
+    extraExports | Just (L.ModuleHead _ _ _ (Just (L.ExportSpecList _ especs))) <- modhead =
+            Map.unions [ modExports db modname | L.EModuleContents _ (L.ModuleName _ modname) <- especs ]
+                | otherwise = Map.empty
+
 moduleScope _ _ = Map.empty
 
 makeTag :: FilePath -> (String, Defn) -> String
