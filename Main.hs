@@ -8,6 +8,7 @@ import System.IO (hPutStrLn, stderr)
 import qualified Data.Map as Map
 import Control.Monad (forM, when)
 import Data.List (sort)
+import Data.Maybe (fromMaybe)
 
 type Database = Map.Map String (L.Module L.SrcSpanInfo)
 
@@ -19,10 +20,11 @@ localDecls (L.Module _ _ _ _ decls) = Map.fromList $ concatMap extract decls
     where
     extract (L.TypeDecl _ head _) = extractDeclHead head
     extract (L.TypeFamDecl _ head _) = extractDeclHead head
-    extract (L.DataDecl _ _ _ head _ _) = extractDeclHead head
-    extract (L.GDataDecl _ _ _ head _ _ _) = extractDeclHead head
+    extract (L.DataDecl _ _ _ head decls _) = extractDeclHead head ++ concatMap extractQualConDecl decls
+    extract (L.GDataDecl _ _ _ head _ decls _) = extractDeclHead head ++ concatMap extractGadtDecl decls
     extract (L.DataFamDecl _ _ head _) = extractDeclHead head
-    extract (L.ClassDecl _ _ head _ _) = extractDeclHead head
+    extract (L.ClassDecl _ _ head _ clsdecls) = extractDeclHead head ++ concatMap extractClassDecl (fromMaybe [] clsdecls)
+    extract (L.TypeSig _ names _) = concatMap extractName names
     extract (L.FunBind _ (L.Match _ name _ _ _ : _)) = extractName name
     extract (L.FunBind _ (L.InfixMatch _ _ name _ _ _ : _)) = extractName name
     extract (L.PatBind _ pat _ _ _) = extractPat pat
@@ -43,6 +45,19 @@ localDecls (L.Module _ _ _ _ decls) = Map.fromList $ concatMap extract decls
     extractPat (L.PatTypeSig _ pat _) = extractPat pat
     extractPat (L.PBangPat _ pat) = extractPat pat
     extractPat _ = []
+
+    extractQualConDecl (L.QualConDecl _ _ _ (L.ConDecl _ name _)) = extractName name
+    extractQualConDecl (L.QualConDecl _ _ _ (L.RecDecl _ name fields)) = extractName name ++ concatMap extractFieldDecl fields
+    extractQualConDecl _ = []
+
+    extractFieldDecl (L.FieldDecl _ names _) = concatMap extractName names
+
+    extractGadtDecl (L.GadtDecl _ name _) = extractName name
+
+    extractClassDecl (L.ClsDecl _ decl) = extract decl
+    extractClassDecl (L.ClsDataFam _ _ head _) = extractDeclHead head
+    extractClassDecl (L.ClsTyFam _ head _) = extractDeclHead head
+    extractClassDecl _ = []
 
     extractName (L.Ident loc name) = [(name, getLoc loc)]
     extractName (L.Symbol _ _) = []   -- no symbols for now
