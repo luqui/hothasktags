@@ -6,7 +6,7 @@ import qualified Language.Haskell.Exts.Annotated as L
 import System.Environment (getArgs)
 import System.IO (hPutStrLn, stderr)
 import qualified Data.Map as Map
-import Control.Monad (forM)
+import Control.Monad (forM, when)
 import Data.List (sort)
 
 type Database = Map.Map String (L.Module L.SrcSpanInfo)
@@ -164,6 +164,8 @@ moduleFile _ = error "Wtf is an XmlPage/XmlHybrid?"
 main :: IO ()
 main = do
     files <- getArgs
+    when (null files) $ do
+        hPutStrLn stderr $ "Usage: hothasktags <file1> <file2> ..."
     database <- makeDatabase files  
     let tags = sort $ concatMap (\mod -> makeTags (moduleFile mod) (moduleScope database mod)) (Map.elems database)
     mapM_ putStrLn tags
