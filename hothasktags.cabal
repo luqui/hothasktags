@@ -30,6 +30,6 @@ executable hothasktags
     build-depends: 
         base == 4.*,
         containers,
-        haskell-src-exts == 1.8.*
+        haskell-src-exts >= 1.8 && < 1.10
     main-is: Main.hs
     ghc-options: -W
