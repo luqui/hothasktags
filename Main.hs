@@ -172,7 +172,7 @@ makeDatabase files = do
     where
     mode filename = L.ParseMode {
         L.parseFilename = filename,
-        L.extensions = [],
+        L.extensions = [L.MultiParamTypeClasses, L.ExistentialQuantification, L.FlexibleContexts],
         L.ignoreLanguagePragmas = False,
         L.ignoreLinePragmas = False,
         L.fixities = []
