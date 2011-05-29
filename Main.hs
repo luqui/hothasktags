@@ -185,7 +185,7 @@ makeDatabase files = do
         L.extensions = [L.MultiParamTypeClasses, L.ExistentialQuantification, L.FlexibleContexts],
         L.ignoreLanguagePragmas = False,
         L.ignoreLinePragmas = False,
-        L.fixities = []
+        L.fixities = Just []
       }
 
 moduleFile :: L.Module L.SrcSpanInfo -> FilePath
