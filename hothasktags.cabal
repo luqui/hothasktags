@@ -31,6 +31,6 @@ executable hothasktags
         base == 4.*,
         containers,
         haskell-src-exts >= 1.8 && < 1.11,
-        cpphs == 1.11.*
+        cpphs >= 1.11 && < 1.14
     main-is: Main.hs
     ghc-options: -W
