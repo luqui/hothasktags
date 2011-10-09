@@ -163,8 +163,10 @@ haskellSource file = do
     contents <- readFile file
     let needsCpp = maybe False (L.CPP `elem`) (L.readExtensions contents)
     if needsCpp
-        then CPP.runCpphs CPP.defaultCpphsOptions file contents
+        then CPP.runCpphs cppOpts file contents
         else return contents
+    where
+    cppOpts = CPP.defaultCpphsOptions { CPP.boolopts = CPP.defaultBoolOptions { CPP.hashline = False } }
     
 
 makeDatabase :: [FilePath] -> IO Database
@@ -185,7 +187,7 @@ makeDatabase files = do
         L.extensions = [L.MultiParamTypeClasses, L.ExistentialQuantification, L.FlexibleContexts],
         L.ignoreLanguagePragmas = False,
         L.ignoreLinePragmas = False,
-        L.fixities = []
+        L.fixities = Nothing
       }
 
 moduleFile :: L.Module L.SrcSpanInfo -> FilePath
