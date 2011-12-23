@@ -6,6 +6,7 @@ import qualified Language.Haskell.Exts.Annotated as L
 import System.Environment (getArgs)
 import System.IO (hPutStrLn, stderr)
 import qualified Data.Map as Map
+import qualified Language.Preprocessor.Cpphs as CPP
 import Control.Monad (forM, when)
 import Data.List (sort)
 import Data.Maybe (fromMaybe)
@@ -157,10 +158,21 @@ makeTag refFile (name, Defn file line) = name ++ "\t" ++ file ++ "\t" ++ show li
 makeTags :: FilePath -> Map.Map String Defn -> [String]
 makeTags refFile = map (makeTag refFile) . Map.assocs
 
+haskellSource :: FilePath -> IO String
+haskellSource file = do
+    contents <- readFile file
+    let needsCpp = maybe False (L.CPP `elem`) (L.readExtensions contents)
+    if needsCpp
+        then CPP.runCpphs cppOpts file contents
+        else return contents
+    where
+    cppOpts = CPP.defaultCpphsOptions { CPP.boolopts = CPP.defaultBoolOptions { CPP.hashline = False } }
+    
+
 makeDatabase :: [FilePath] -> IO Database
 makeDatabase files = do
     fmap (Map.fromList . concat) . forM files $ \file -> do
-        result <- L.parseFileWithMode (mode file) file
+        result <- L.parseFileContentsWithMode (mode file) `fmap` haskellSource file
         case result of
             L.ParseOk mod@(L.Module _ (Just (L.ModuleHead _ (L.ModuleName _ name) _ _)) _ _ _) -> do
                 return [(name, mod)]
@@ -175,7 +187,7 @@ makeDatabase files = do
         L.extensions = [L.MultiParamTypeClasses, L.ExistentialQuantification, L.FlexibleContexts],
         L.ignoreLanguagePragmas = False,
         L.ignoreLinePragmas = False,
-        L.fixities = []
+        L.fixities = Nothing
       }
 
 moduleFile :: L.Module L.SrcSpanInfo -> FilePath
