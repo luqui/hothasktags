@@ -63,8 +63,10 @@ localDecls (L.Module _ _ _ _ decls) = Map.fromList $ concatMap extract decls
     extractName (L.Ident loc name) = [(name, getLoc loc)]
     extractName (L.Symbol _ _) = []   -- no symbols for now
 
-    getLoc (L.SrcSpanInfo (L.SrcSpan file line _ _ _) _) = Defn file line
 localDecls _ = Map.empty
+
+getLoc :: L.SrcSpanInfo -> Defn
+getLoc (L.SrcSpanInfo (L.SrcSpan file line _ _ _) _) = Defn file line
 
 thingMembers :: L.Module L.SrcSpanInfo -> String -> [String]
 thingMembers (L.Module _ _ _ _ decls) name = concatMap extract decls
@@ -117,8 +119,11 @@ exported mod@(L.Module _ (Just (L.ModuleHead _ _ _ (Just (L.ExportSpecList _ spe
 exported _ _ = True
 
 moduleScope :: Database -> L.Module L.SrcSpanInfo -> Map.Map String Defn
-moduleScope db mod@(L.Module _ modhead _ imports _) = localDecls mod `Map.union` Map.unions (map extractImport imports)
+moduleScope db mod@(L.Module _ modhead _ imports _) = moduleItself modhead `Map.union` localDecls mod `Map.union` Map.unions (map extractImport imports)
     where
+    moduleItself (Just (L.ModuleHead l (L.ModuleName _ name) _ _)) = Map.singleton name (getLoc l)
+    moduleItself _ = Map.empty
+
     extractImport decl@(L.ImportDecl { L.importModule = L.ModuleName _ name, L.importSpecs = spec }) = 
         Map.unions [
             if L.importQualified decl then Map.empty else names,
