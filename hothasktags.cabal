@@ -30,6 +30,7 @@ executable hothasktags
     build-depends: 
         base == 4.*,
         containers,
+        filepath,
         haskell-src-exts >= 1.11 && < 1.14,
         cpphs >= 1.11 && < 1.15
     main-is: Main.hs
