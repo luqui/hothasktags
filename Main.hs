@@ -10,6 +10,7 @@ import qualified Language.Preprocessor.Cpphs as CPP
 import Control.Monad (forM, when)
 import Data.List (sort)
 import Data.Maybe (fromMaybe)
+import System.FilePath.Posix (takeFileName)
 
 type Database = Map.Map String (L.Module L.SrcSpanInfo)
 
@@ -119,11 +120,19 @@ exported mod@(L.Module _ (Just (L.ModuleHead _ _ _ (Just (L.ExportSpecList _ spe
 exported _ _ = True
 
 moduleScope :: Database -> L.Module L.SrcSpanInfo -> Map.Map String Defn
-moduleScope db mod@(L.Module _ modhead _ imports _) = moduleItself modhead `Map.union` localDecls mod `Map.union` Map.unions (map extractImport imports)
+moduleScope db mod@(L.Module _ modhead _ imports _) = moduleItself `Map.union` localDecls mod `Map.union` Map.unions (map extractImport imports)
     where
-    moduleItself (Just (L.ModuleHead l (L.ModuleName _ name) _ _)) = Map.singleton name (getLoc l)
-    moduleItself _ = Map.empty
 
+    moduleItself = moduleDecl modhead `Map.union` enclosingFilename mod
+
+    moduleDecl (Just (L.ModuleHead l (L.ModuleName _ name) _ _)) = Map.singleton name (getLoc l)
+    moduleDecl _ = Map.empty
+
+    enclosingFilename (L.Module l _ _ _ _) = Map.singleton (filename l) (getLoc l)
+    enclosingFilename _ = Map.empty
+
+    filename (L.SrcSpanInfo (L.SrcSpan file _ _ _ _) _) = takeFileName file
+    
     extractImport decl@(L.ImportDecl { L.importModule = L.ModuleName _ name, L.importSpecs = spec }) = 
         Map.unions [
             if L.importQualified decl then Map.empty else names,
