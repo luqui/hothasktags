@@ -120,7 +120,7 @@ exported mod@(L.Module _ (Just (L.ModuleHead _ _ _ (Just (L.ExportSpecList _ spe
 exported _ _ = True
 
 moduleScope :: Database -> L.Module L.SrcSpanInfo -> Map.Map String Defn
-moduleScope db mod@(L.Module _ modhead _ imports _) = moduleItself `Map.union` localDecls mod `Map.union` Map.unions (map extractImport imports)
+moduleScope db mod@(L.Module _ modhead _ imports _) = Map.unions $ moduleItself : localDecls mod : map extractImport imports
     where
 
     moduleItself = moduleDecl modhead `Map.union` enclosingFilename mod
