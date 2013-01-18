@@ -1,9 +1,10 @@
 name: hothasktags
 version: 0.3.0
-cabal-version: >= 1.6 && < 2
+cabal-version: >= 1.6
 build-type: Simple
 author: Luke Palmer <lrpalmer@gmail.com>
 license: BSD3
+license-file: LICENSE
 maintainer: Luke Palmer <lrpalmer@gmail.com>
 category: Development
 synopsis: Generates ctags for Haskell, incorporating import lists and qualified imports
@@ -28,6 +29,9 @@ description:
     .
     hothasktags does not work with the emacs tag file format.  Sorry.
 homepage: http://github.com/luqui/hothasktags
+source-repository head
+    type: git
+    location: git://github.com/luqui/hothasktags.git
 executable hothasktags
     build-depends: 
         base == 4.*,
