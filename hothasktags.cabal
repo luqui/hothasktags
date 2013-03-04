@@ -8,8 +8,8 @@ license-file: LICENSE
 maintainer: Luke Palmer <lrpalmer@gmail.com>
 category: Development
 synopsis: Generates ctags for Haskell, incorporating import lists and qualified imports
-description: 
-    hothasktags generates ctags files for Haskell, with knowledge of import lists 
+description:
+    hothasktags generates ctags files for Haskell, with knowledge of import lists
     and qualified imports.  It provides a smart go-to-definition for Vim, that almost
     always gets it right in the presence of multiple names from different modules.
     .
@@ -33,11 +33,11 @@ source-repository head
     type: git
     location: git://github.com/luqui/hothasktags.git
 executable hothasktags
-    build-depends: 
+    build-depends:
         base == 4.*,
         containers,
         filepath,
         haskell-src-exts >= 1.11 && < 1.14,
-        cpphs >= 1.11 && < 1.15
+        cpphs >= 1.11 && < 1.17
     main-is: Main.hs
     ghc-options: -W
