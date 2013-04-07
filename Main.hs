@@ -11,6 +11,7 @@ import Control.Monad (forM, when)
 import Data.List (sort)
 import Data.Maybe (fromMaybe)
 import System.FilePath.Posix (takeFileName)
+import System.Console.GetOpt
 
 type Database = Map.Map String (L.Module L.SrcSpanInfo)
 
@@ -208,11 +209,27 @@ moduleFile :: L.Module L.SrcSpanInfo -> FilePath
 moduleFile (L.Module (L.SrcSpanInfo (L.SrcSpan file _ _ _ _) _) _ _ _ _) = file
 moduleFile _ = error "Wtf is an XmlPage/XmlHybrid?"
 
+data Options = Options 
+ { outputFile :: Maybe FilePath
+ }
+
+defaultOptions :: Options
+defaultOptions = Options
+ { outputFile = Nothing
+ }
+
+options :: [OptDescr (Options -> Options)]
+options = [ Option ['f'] ["file"] (ReqArg (\f opts -> opts {outputFile = Just f}) "FILE") "output tags to FILE" ]
+
 main :: IO ()
 main = do
-    files <- getArgs
+    args <- getArgs
+    let (opts', files, _) = getOpt Permute options args
+    let opts = foldl (flip id) defaultOptions opts'
     when (null files) $ do
-        hPutStrLn stderr $ "Usage: hothasktags <file1> <file2> ..."
+        hPutStrLn stderr $ "Usage: hothasktags [-f <output_file>] <file1> <file2> ..."
     database <- makeDatabase files  
     let tags = sort $ concatMap (\mod -> makeTags (moduleFile mod) (moduleScope database mod)) (Map.elems database)
-    mapM_ putStrLn tags
+    case outputFile opts of 
+        Nothing -> mapM_ putStrLn tags
+        Just f -> writeFile f (unlines tags)
