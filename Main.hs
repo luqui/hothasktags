@@ -1,13 +1,14 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE PatternGuards #-}
 
 module Main where
 
 import qualified Language.Haskell.Exts.Annotated as L
-import System.Environment (getArgs)
+import System.Console.CmdArgs
 import System.IO (hPutStrLn, stderr)
 import qualified Data.Map as Map
 import qualified Language.Preprocessor.Cpphs as CPP
-import Control.Monad (forM, when)
+import Control.Monad (forM)
 import Data.List (sort)
 import Data.Maybe (fromMaybe)
 import System.FilePath.Posix (takeFileName)
@@ -39,7 +40,7 @@ localDecls (L.Module _ _ _ _ decls) = Map.fromList $ concatMap extract decls
 
     extractPat (L.PVar _ name) = extractName name
     extractPat (L.PApp _ _ pats) = concatMap extractPat pats
-    extractPat (L.PTuple _ pats) = concatMap extractPat pats
+    extractPat (L.PTuple _ _ pats) = concatMap extractPat pats
     extractPat (L.PList _ pats) = concatMap extractPat pats
     extractPat (L.PParen _ pat) = extractPat pat
     extractPat (L.PAsPat _ name pat) = extractName name ++ extractPat pat
@@ -172,21 +173,43 @@ makeTag refFile (name, Defn file line) = name ++ "\t" ++ file ++ "\t" ++ show li
 makeTags :: FilePath -> Map.Map String Defn -> [String]
 makeTags refFile = map (makeTag refFile) . Map.assocs
 
-haskellSource :: FilePath -> IO String
-haskellSource file = do
+haskellSource :: [L.Extension] -> HotHasktags -> FilePath -> IO String
+haskellSource exts conf file = do
     contents <- readFile file
-    let needsCpp = maybe False (L.CPP `elem`) (L.readExtensions contents)
-    if needsCpp
-        then CPP.runCpphs cppOpts file contents
-        else return contents
+    let needsCpp = not . null $
+            [ ()
+                | Just (_language, extsFile) <- [L.readExtensions contents],
+                  L.EnableExtension L.CPP <- extsFile ]
+            ++ [ () | L.EnableExtension L.CPP <- exts ]
+    if not needsCpp
+        then return contents
+        else do
+            cppOpts <- either recoverCppOptFail return
+                            (CPP.parseOptions (hh_cpphs conf))
+            CPP.runCpphs (addOpts cppOpts) file contents
     where
-    cppOpts = CPP.defaultCpphsOptions { CPP.boolopts = CPP.defaultBoolOptions { CPP.hashline = False } }
-    
+    addOpts defOpts = defOpts
+         { CPP.boolopts = (CPP.boolopts defOpts) { CPP.hashline = False },
+            CPP.defines = map splitDefines (hh_define conf) ++ CPP.defines defOpts,
+            CPP.includes = hh_include conf ++ CPP.includes defOpts }
 
-makeDatabase :: [FilePath] -> IO Database
-makeDatabase files = do
-    fmap (Map.fromList . concat) . forM files $ \file -> do
-        result <- L.parseFileContentsWithMode (mode file) `fmap` haskellSource file
+    recoverCppOptFail err = do
+        hPutStrLn stderr $ "cpphs parse error arguments:" ++ err
+        return CPP.defaultCpphsOptions
+
+
+    splitDefines :: String -> (String,String)
+    splitDefines s = let (a,b) = break (=='=') s
+                    in (a, case drop 1 b of
+                            [] -> "1"
+                            b' -> b')
+                     
+    
+makeDatabase :: [L.Extension] -> HotHasktags -> IO Database
+makeDatabase exts conf = do
+    fmap (Map.fromList . concat) . forM (hh_files conf) $ \file -> do
+        result <- L.parseFileContentsWithMode (mode file)
+                    `fmap` haskellSource exts conf file
         case result of
             L.ParseOk mod@(L.Module _ (Just (L.ModuleHead _ (L.ModuleName _ name) _ _)) _ _ _) -> do
                 return [(name, mod)]
@@ -198,21 +221,58 @@ makeDatabase files = do
     where
     mode filename = L.ParseMode {
         L.parseFilename = filename,
-        L.extensions = [L.MultiParamTypeClasses, L.ExistentialQuantification, L.FlexibleContexts],
+        L.extensions = exts,
         L.ignoreLanguagePragmas = False,
         L.ignoreLinePragmas = False,
-        L.fixities = Nothing
+        L.fixities = Nothing,
+        L.baseLanguage = L.Haskell2010
       }
 
 moduleFile :: L.Module L.SrcSpanInfo -> FilePath
 moduleFile (L.Module (L.SrcSpanInfo (L.SrcSpan file _ _ _ _) _) _ _ _ _) = file
 moduleFile _ = error "Wtf is an XmlPage/XmlHybrid?"
 
+data HotHasktags = HotHasktags {
+    hh_files, hh_language, hh_define, hh_include, hh_cpphs :: [String] }
+    deriving (Data,Typeable,Show)
+
+defaultHotHasktags :: HotHasktags
+defaultHotHasktags = HotHasktags { 
+    hh_files = []
+        &= args
+        &= typ "FILE",
+    hh_language = []
+        &= help "Additional language extensions to use when parsing a file. \
+                \LANGUAGE pragmas are currently obeyed. Always includes at least \
+                \MultiParamTypeClasses ExistentialQuantification \
+                \and FlexibleContexts"
+        &= name "X",
+    hh_define = []
+        &= name "D"
+        &= help "Define for cpphs. -Dx is a shortcut for the flags -c -Dx",
+    hh_include = []
+        &= name "I"
+        &= typ "DIR"
+        &= help "Add a directory to where cpphs looks for .h includes. Note that \
+                \paths are currently interpreted as relative to the directory \
+                \containing the source file \
+                \-Ifoo is a shortcut for -c -Ifoo",
+    hh_cpphs = []
+        &= name "cpp" &= name "c"
+        &= explicit
+        &= help "Pass the next argument as an option for cpphs. For example:\n\
+                \`hothasktags -c --strip -XCPP foo.hs'\
+                \ see `cpphs --help`"}
+
 main :: IO ()
 main = do
-    files <- getArgs
-    when (null files) $ do
-        hPutStrLn stderr $ "Usage: hothasktags <file1> <file2> ..."
-    database <- makeDatabase files  
+    conf <- cmdArgs defaultHotHasktags
+    let exts = map L.classifyExtension $ hh_language conf ++
+         words "MultiParamTypeClasses ExistentialQuantification FlexibleContexts"
+    case unwords [ ext | L.UnknownExtension ext <- exts ] of
+            [] -> return ()
+            unknown -> hPutStrLn stderr $ "Unknown extensions on command line: "
+                                            ++ unknown
+    database <- makeDatabase exts conf 
     let tags = sort $ concatMap (\mod -> makeTags (moduleFile mod) (moduleScope database mod)) (Map.elems database)
     mapM_ putStrLn tags
