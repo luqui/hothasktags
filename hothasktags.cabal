@@ -37,7 +37,8 @@ executable hothasktags
         base == 4.*,
         containers,
         filepath,
-        haskell-src-exts >= 1.11 && < 1.14,
-        cpphs >= 1.11 && < 1.17
+        haskell-src-exts >= 1.14,
+        cpphs >= 1.11 && < 1.17,
+        cmdargs
     main-is: Main.hs
     ghc-options: -W
