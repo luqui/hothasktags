@@ -3,7 +3,7 @@ all:  build tags
 
 build: dist/setup-config dist/build/hothasktags/hothasktags
 
-dist/setup-config:
+dist/setup-config: hothasktags.cabal
 	cabal install --only-dependencies
 	cabal configure
 
