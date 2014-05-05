@@ -5,7 +5,7 @@ module Main where
 
 import qualified Language.Haskell.Exts.Annotated as L
 import System.Console.CmdArgs
-import System.IO (hPutStrLn, stderr)
+import System.IO (hPutStrLn, stderr, stdout, IOMode(..), openFile, hClose)
 import qualified Data.Map as Map
 import qualified Language.Preprocessor.Cpphs as CPP
 import Control.Monad (forM)
@@ -233,7 +233,7 @@ moduleFile (L.Module (L.SrcSpanInfo (L.SrcSpan file _ _ _ _) _) _ _ _ _) = file
 moduleFile _ = error "Wtf is an XmlPage/XmlHybrid?"
 
 data HotHasktags = HotHasktags {
-    hh_files, hh_language, hh_define, hh_include, hh_cpphs :: [String] }
+    hh_files, hh_language, hh_define, hh_include, hh_output, hh_cpphs :: [String] }
     deriving (Data,Typeable,Show)
 
 defaultHotHasktags :: HotHasktags
@@ -257,6 +257,11 @@ defaultHotHasktags = HotHasktags {
                 \paths are currently interpreted as relative to the directory \
                 \containing the source file \
                 \-Ifoo is a shortcut for -c -Ifoo",
+    hh_output = []
+        &= name "output" &= name "O"
+        &= explicit
+        &= typ "FILE"
+        &= help "Name of output file. Default is to write to stdout",
     hh_cpphs = []
         &= name "cpp" &= name "c"
         &= explicit
@@ -275,4 +280,12 @@ main = do
                                             ++ unknown
     database <- makeDatabase exts conf 
     let tags = sort $ concatMap (\mod -> makeTags (moduleFile mod) (moduleScope database mod)) (Map.elems database)
-    mapM_ putStrLn tags
+    handle <- case (hh_output conf) of
+                []      -> return stdout
+                file:_  -> openFile file WriteMode
+
+    mapM_ (hPutStrLn handle) tags
+
+    case (hh_output conf) of
+                []      -> return ()
+                _       -> hClose handle
