@@ -30,13 +30,14 @@ localDecls (L.Module _ _ _ _ decls) = Map.fromList $ concatMap extract decls
     extract (L.TypeSig _ names _) = concatMap extractName names
     extract (L.FunBind _ (L.Match _ name _ _ _ : _)) = extractName name
     extract (L.FunBind _ (L.InfixMatch _ _ name _ _ _ : _)) = extractName name
-    extract (L.PatBind _ pat _ _ _) = extractPat pat
+    extract (L.PatBind _ pat _ _) = extractPat pat
     extract (L.ForImp _ _ _ _ name _) = extractName name
     extract _ = []
 
-    extractDeclHead (L.DHead _ name _) = extractName name
-    extractDeclHead (L.DHInfix _ _ name _) = extractName name
+    extractDeclHead (L.DHead _ name) = extractName name
+    extractDeclHead (L.DHInfix _ _ name) = extractName name
     extractDeclHead (L.DHParen _ head') = extractDeclHead head'
+    extractDeclHead (L.DHApp _ head' _) = extractDeclHead head'
 
     extractPat (L.PVar _ name) = extractName name
     extractPat (L.PApp _ _ pats) = concatMap extractPat pats
@@ -55,7 +56,7 @@ localDecls (L.Module _ _ _ _ decls) = Map.fromList $ concatMap extract decls
 
     extractFieldDecl (L.FieldDecl _ names _) = concatMap extractName names
 
-    extractGadtDecl (L.GadtDecl _ name _) = extractName name
+    extractGadtDecl (L.GadtDecl _ name _ _) = extractName name
 
     extractClassDecl (L.ClsDecl _ decl) = extract decl
     extractClassDecl (L.ClsDataFam _ _ head _) = extractDeclHead head
@@ -82,25 +83,25 @@ thingMembers (L.Module _ _ _ _ decls) name = concatMap extract decls
     getQualConDecl (L.QualConDecl _ _ _ (L.RecDecl _ (L.Ident _ name) fields)) = name : concatMap getField fields
     getQualConDecl _ = []
 
-    getGadtDecl (L.GadtDecl _ name _) = getName name
-    
+    getGadtDecl (L.GadtDecl _ name _ _) = getName name
+
     getField (L.FieldDecl _ names _) = concatMap getName names
 
     getClassDecl (L.ClsDecl _ (L.FunBind _ (L.Match _ name _ _ _ : _))) = getName name
-    getClassDecl (L.ClsDecl _ (L.PatBind _ (L.PVar _ name) _ _ _)) = getName name  
+    getClassDecl (L.ClsDecl _ (L.PatBind _ (L.PVar _ name) _ _)) = getName name
     getClassDecl _ = []
 
     getName (L.Ident _ name) = [name]
     getName _ = []
 
-    nameOfHead (L.DHead _ (L.Ident _ name) _) = Just name
-    nameOfHead (L.DHInfix _ _ (L.Ident _ name) _) = Just name
+    nameOfHead (L.DHead _ (L.Ident _ name)) = Just name
+    nameOfHead (L.DHInfix _ _ (L.Ident _ name)) = Just name
     nameOfHead (L.DHParen _ h) = nameOfHead h
     nameOfHead _ = Nothing
 thingMembers _ _ = []
 
 modExports :: Database -> String -> Map.Map String Defn
-modExports db modname = 
+modExports db modname =
     case Map.lookup modname db of
         Nothing -> Map.empty
         Just mod -> Map.filterWithKey (\k _ -> exported mod k) (localDecls mod)
@@ -108,13 +109,13 @@ modExports db modname =
 exported :: L.Module L.SrcSpanInfo -> String -> Bool
 exported mod@(L.Module _ (Just (L.ModuleHead _ _ _ (Just (L.ExportSpecList _ specs)))) _ _ _) name = any (matchesSpec name) specs
     where
-    matchesSpec name (L.EVar _ (L.UnQual _ (L.Ident _ name'))) = name == name'
+    matchesSpec name (L.EVar _ _ (L.UnQual _ (L.Ident _ name'))) = name == name'
     matchesSpec name (L.EAbs _ (L.UnQual _ (L.Ident _ name'))) = name == name'
     matchesSpec name (L.EThingAll _ (L.UnQual _ (L.Ident _ name'))) = name == name' || (name `elem` thingMembers mod name')
     matchesSpec name (L.EThingWith _ (L.UnQual _ (L.Ident _ name')) cnames) = name == name' || any (matchesCName name) cnames
     matchesSpec _ (L.EModuleContents _ (L.ModuleName _ _)) = False  -- XXX wrong, moduleScope handles it though
     matchesSpec _ _ = False
-    
+
     matchesCName name (L.VarName _ (L.Ident _ name')) = name == name'
     matchesCName name (L.ConName _ (L.Ident _ name')) = name == name'
     matchesCName _ _ = False
@@ -133,8 +134,8 @@ moduleScope db mod@(L.Module _ modhead _ imports _) = Map.unions $ moduleItself 
     enclosingFilename _ = Map.empty
 
     filename (L.SrcSpanInfo (L.SrcSpan file _ _ _ _) _) = takeFileName file
-    
-    extractImport decl@(L.ImportDecl { L.importModule = L.ModuleName _ name, L.importSpecs = spec }) = 
+
+    extractImport decl@(L.ImportDecl { L.importModule = L.ModuleName _ name, L.importSpecs = spec }) =
         Map.unions [
             if L.importQualified decl then Map.empty else names,
             Map.mapKeys ((name ++ ".") ++) names,
@@ -143,7 +144,7 @@ moduleScope db mod@(L.Module _ modhead _ imports _) = Map.unions $ moduleItself 
                 Just (L.ModuleName _ name') -> Map.mapKeys ((name' ++ ".") ++) names,
             extraExports
         ]
-        
+
         where
         names | Just (L.ImportSpecList _ True specs) <- spec = normalExports `Map.difference` (Map.fromList (map (flip (,) ()) (concatMap specName specs)))
               | Just (L.ImportSpecList _ False specs) <- spec = Map.filterWithKey (\k _ -> k `elem` concatMap specName specs) normalExports
@@ -151,7 +152,7 @@ moduleScope db mod@(L.Module _ modhead _ imports _) = Map.unions $ moduleItself 
 
         normalExports = modExports db name
 
-        specName (L.IVar _ (L.Ident _ name)) = [name]
+        specName (L.IVar _ _ (L.Ident _ name)) = [name]
         specName (L.IAbs _ (L.Ident _ name)) = [name]
         specName (L.IThingAll _ (L.Ident _ name)) = [name]  -- XXX incorrect, need its member names
         specName (L.IThingWith _ (L.Ident _ name) cnames) = name : concatMap cname cnames
@@ -203,8 +204,8 @@ haskellSource exts conf file = do
                     in (a, case drop 1 b of
                             [] -> "1"
                             b' -> b')
-                     
-    
+
+
 makeDatabase :: [L.Extension] -> HotHasktags -> IO Database
 makeDatabase exts conf = do
     fmap (Map.fromList . concat) . forM (hh_files conf) $ \file -> do
@@ -237,7 +238,7 @@ data HotHasktags = HotHasktags {
     deriving (Data,Typeable,Show)
 
 defaultHotHasktags :: HotHasktags
-defaultHotHasktags = HotHasktags { 
+defaultHotHasktags = HotHasktags {
     hh_files = []
         &= args
         &= typ "FILE",
@@ -278,7 +279,7 @@ main = do
             [] -> return ()
             unknown -> hPutStrLn stderr $ "Unknown extensions on command line: "
                                             ++ unknown
-    database <- makeDatabase exts conf 
+    database <- makeDatabase exts conf
     let tags = sort $ concatMap (\mod -> makeTags (moduleFile mod) (moduleScope database mod)) (Map.elems database)
     handle <- case (hh_output conf) of
                 []      -> return stdout
