@@ -37,6 +37,7 @@ localDecls (L.Module _ _ _ _ decls) = Map.fromList $ concatMap extract decls
     extractDeclHead (L.DHead _ name) = extractName name
     extractDeclHead (L.DHInfix _ _ name) = extractName name
     extractDeclHead (L.DHParen _ head') = extractDeclHead head'
+    extractDeclHead (L.DHApp _ head' _) = extractDeclHead head'
 
     extractPat (L.PVar _ name) = extractName name
     extractPat (L.PApp _ _ pats) = concatMap extractPat pats
