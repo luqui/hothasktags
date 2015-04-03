@@ -1,5 +1,5 @@
 name: hothasktags
-version: 0.3.2
+version: 0.3.3
 cabal-version: >= 1.6
 build-type: Simple
 author: Luke Palmer <lrpalmer@gmail.com>
@@ -38,7 +38,7 @@ executable hothasktags
         containers,
         filepath,
         haskell-src-exts >= 1.14,
-        cpphs >= 1.11 && < 1.19,
+        cpphs >= 1.11 && < 1.20,
         cmdargs
     main-is: Main.hs
     ghc-options: -W
