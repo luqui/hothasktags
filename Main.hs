@@ -74,7 +74,7 @@ localDecls (L.Module _ _ _ _ decls) = Map.fromList $ concatMap extract decls
     extractClassDecl _ = []
 
     extractName (L.Ident loc name) = [(name, getLoc loc)]
-    extractName (L.Symbol _ _) = [] -- no symbols for now
+    extractName (L.Symbol loc name) = [(name, getLoc loc)]
 
 localDecls _ = Map.empty
 
