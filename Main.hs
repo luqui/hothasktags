@@ -1,9 +1,8 @@
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE PatternGuards #-}
 
 module Main where
 
-import System.Console.CmdArgs
+import Options.Applicative
 import qualified Language.Haskell.Exts.Annotated as L
 import System.IO
 import qualified Data.Map.Strict as Map
@@ -266,48 +265,57 @@ moduleFile (L.Module (L.SrcSpanInfo (L.SrcSpan file _ _ _ _) _) _ _ _ _) = file
 -- these could be converted with sModule; see Language.Haskell.Exts.Simplify
 moduleFile _ = error "Sorry, XmlPage/XmlHybrid modules are not supported"
 
-data HotHasktags = HotHasktags {
-    hhFiles, hhLanguage, hhDefine, hhInclude, hhOutput, hhCpphs :: [String] }
-    deriving (Data,Typeable,Show)
+data HotHasktags = HotHasktags
+    { hhLanguage, hhDefine, hhInclude, hhCpphs :: [String]
+    , hhOutput :: Maybe FilePath
+    , hhFiles :: [FilePath]
+    }
 
-defaultHotHasktags :: HotHasktags
-defaultHotHasktags = HotHasktags {
-    hhFiles = []
-        &= args
-        &= typ "FILE",
-    hhLanguage = []
-        &= help "Additional language extensions to use when parsing a file. \
-                \LANGUAGE pragmas are currently obeyed. Always includes at least \
-                \MultiParamTypeClasses ExistentialQuantification \
-                \and FlexibleContexts"
-        &= name "X",
-    hhDefine = []
-        &= name "D"
-        &= help "Define for cpphs. -Dx is a shortcut for the flags -c -Dx",
-    hhInclude = []
-        &= name "I"
-        &= typ "DIR"
-        &= help "Add a directory to where cpphs looks for .h includes. Note that \
-                \paths are currently interpreted as relative to the directory \
-                \containing the source file \
-                \-Ifoo is a shortcut for -c -Ifoo",
-    hhOutput = []
-        &= name "output" &= name "O"
-        &= explicit
-        &= typ "FILE"
-        &= help "Name of output file. Default is to write to stdout",
-    hhCpphs = []
-        &= name "cpp" &= name "c"
-        &= explicit
-        &= help "Pass the next argument as an option for cpphs. For example:\n\
-                \`hothasktags -c --strip -XCPP foo.hs'\
-                \ see `cpphs --help`"}
+optParser :: Parser HotHasktags
+optParser = HotHasktags
+    <$> many (strOption
+        ( short 'X'
+       <> long "hh-language"
+       <> metavar "ITEM"
+       <> help "Additional language extensions to use when parsing a file.  \
+               \LANGUAGE pragmas are currently obeyed.  Always includes at \
+               \least MultiParamTypeClasses, ExistentialQuantification, \
+               \and FlexibleContexts" ))
+    <*> many (strOption
+        ( short 'D'
+       <> long "hh-define"
+       <> metavar "ITEM"
+       <> help "Define for cpphs.  -Dx is a shortcut for the flags -c -Dx" ))
+    <*> many (strOption
+        ( short 'I'
+       <> long "hh-include"
+       <> metavar "DIR"
+       <> help "Add a directory to where cpphs looks for .h includes.  Note \
+               \that paths are currently interpreted as relative to the \
+               \directory containing the source file.\n\
+               \-Ifoo is a shortcut for -c -Ifoo" ))
+    <*> many (strOption
+        ( short 'c'
+       <> long "cpp"
+       <> metavar "ITEM"
+       <> help "Pass the next argument as an option for cpphs.  For example:\n\
+               \`hothasktags -c --strip -XCPP foo.hs'" ))
+    <*> optional (strOption
+        ( short 'O'
+       <> long "output"
+       <> metavar "FILE"
+       <> help "Name of output file.  Default is to write to stdout" ))
+    <*> many (argument str (metavar "FILE"))
 
 main :: IO ()
 main = do
-    conf <- cmdArgs defaultHotHasktags
+    let opts = info (helper <*> optParser)
+          ( fullDesc
+         <> progDesc "The hothasktags program" )
+    conf <- execParser opts
     let exts = map L.classifyExtension $ hhLanguage conf ++
-         words "MultiParamTypeClasses ExistentialQuantification FlexibleContexts"
+               ["MultiParamTypeClasses", "ExistentialQuantification",
+                "FlexibleContexts"]
     case unwords [ ext | L.UnknownExtension ext <- exts ] of
             [] -> return ()
             unknown -> hPutStrLn stderr $ "Unknown extensions on command line: "
@@ -317,11 +325,11 @@ main = do
                                                    (moduleScope database mod'))
                                 (Map.elems database)
     handle <- case hhOutput conf of
-                []    -> return stdout
-                file  -> openFile file WriteMode
+                Nothing -> return stdout
+                Just file -> openFile file WriteMode
 
     mapM_ (hPutStrLn handle) tags
 
     case hhOutput conf of
-                []      -> return ()
-                _       -> hClose handle
+      Nothing -> return ()
+      _ -> hClose handle
