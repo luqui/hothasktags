@@ -1,5 +1,5 @@
 name: hothasktags
-version: 0.3.3
+version: 0.3.4
 cabal-version: >= 1.6
 build-type: Simple
 author: Luke Palmer <lrpalmer@gmail.com>
@@ -26,8 +26,6 @@ description:
     > find . | egrep '\.hs$' | xargs hothasktags > tags
     .
     will index all the hs files under the current directory.
-    .
-    hothasktags does not work with the emacs tag file format.  Sorry.
 homepage: http://github.com/luqui/hothasktags
 source-repository head
     type: git
@@ -35,6 +33,7 @@ source-repository head
 executable hothasktags
     build-depends:
         base == 4.*,
+        array,
         containers,
         filepath,
         haskell-src-exts >= 1.14,
