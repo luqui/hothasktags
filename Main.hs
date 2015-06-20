@@ -8,11 +8,14 @@ import System.IO
 import GHC.IO.Handle (HandlePosition)
 import qualified Data.Map.Strict as Map
 import qualified Language.Preprocessor.Cpphs as CPP
+import Control.Exception (ErrorCall(..), catch, evaluate)
+import System.Exit (exitFailure)
 import Control.Monad
 import qualified Data.Array.Unboxed as A
 import Data.List (sort)
 import Data.Maybe (fromMaybe)
 import System.FilePath.Posix (takeFileName)
+import Data.List.Split (endBy)
 
 type Database = Map.Map String (L.Module L.SrcSpanInfo)
 type LineInfo = Map.Map FilePath (A.Array Int (HandlePosition, String))
@@ -204,25 +207,28 @@ moduleScope db mod'@(L.Module _ modhead _ imports _) =
 
 moduleScope _ _ = Map.empty
 
-makeVimTags :: FilePath -> Map.Map String Defn -> LineInfo -> [String]
-makeVimTags refFile m _ = map (makeTag refFile) (Map.assocs m)
+makeVimTags :: FilePath -> Map.Map String Defn -> LineInfo -> IO [String]
+makeVimTags refFile m _ = pure $ map (makeTag refFile) (Map.assocs m)
   where
     makeTag refFile' (name, Defn file line _) =
       name ++ "\t" ++ file ++ "\t" ++ show line ++ ";\"\t" ++ "file:" ++
       refFile'
 
-makeEmacsTags :: FilePath -> Map.Map String Defn -> LineInfo -> [String]
-makeEmacsTags refFile m li = "\x0c":(refFile ++ "," ++ tagsLen):tags
+makeEmacsTags :: FilePath -> Map.Map String Defn -> LineInfo -> IO [String]
+makeEmacsTags refFile m li = do
+    tags <- mapM (makeTag refFile) (Map.assocs m)
+    let tagsLen = show (sum $ map length tags)
+    return $ "\x0c":(refFile ++ "," ++ tagsLen):tags
   where
-    makeTag _ (name, Defn file line ecol) =
-      let ms = li Map.! file
-          linenum = show line
+    makeTag _ (name, Defn file line ecol) = do
+      ms <- catch (evaluate $ li Map.! file) $ \(ErrorCall _) -> do
+        hPutStrLn stderr $ "hothasktags: couldn't find '" ++ file ++ "'"
+        exitFailure
+      let linenum = show line
           (offset, leader) =
             let x = ms A.! (line - 1) in
-            (show $ fst x, take (ecol - 1) $ snd x) in
-      leader ++ "\x7f" ++ name ++ "\x01" ++ linenum ++ "," ++ offset
-    tags = map (makeTag refFile) (Map.assocs m)
-    tagsLen = show $ foldr ((+) . length) 0 tags
+            (show $ fst x, take (ecol - 1) $ snd x)
+      return $ leader ++ "\x7f" ++ name ++ "\x01" ++ linenum ++ "," ++ offset
 
 haskellSource :: [L.Extension] -> HotHasktags -> FilePath -> IO String
 haskellSource exts conf file = do
@@ -287,6 +293,7 @@ data HotHasktags = HotHasktags
     { hhLanguage, hhDefine, hhInclude, hhCpphs :: [String]
     , hhOutput :: Maybe FilePath
     , hhTagstype :: TagsType
+    , hhSplitOnNUL :: Bool
     , hhFiles :: [FilePath]
     }
 
@@ -327,6 +334,10 @@ optParser = HotHasktags
     <*> flag VimTags EmacsTags
           ( short 'e'
          <> help "Emit Emacs tags" )
+    <*> switch
+        ( short '0'
+       <> long "null"
+       <> help "Split stdin on NUL instead of newline" )
     <*> many (argument str (metavar "FILE"))
 
 linePositions :: Handle -> IO (Int, [(HandlePosition, String)])
@@ -346,6 +357,11 @@ emacsLineInfo files = do
                [(path, A.array (0, numLines - 1) (zip [0..] ls))
                 | (path, (numLines, ls)) <- zip files filesContents]
 
+stdinFileList :: Bool -> IO [FilePath]
+stdinFileList onNull = liftM splitter getContents
+  where
+    splitter = if onNull then endBy "\0" else lines
+
 main :: IO ()
 main = do
     let opts = info (helper <*> optParser)
@@ -359,23 +375,30 @@ main = do
             [] -> return ()
             unknown -> hPutStrLn stderr $ "Unknown extensions on command line: "
                                             ++ unknown
-    lineInfo <- if hhTagstype conf == EmacsTags
-                then emacsLineInfo (hhFiles conf)
+    conf' <- case hhFiles conf of
+      [] -> liftM (\x -> conf { hhFiles = x })
+                  $ stdinFileList (hhSplitOnNUL conf)
+      _ -> return conf
+    lineInfo <- if hhTagstype conf' == EmacsTags
+                then emacsLineInfo $ hhFiles conf'
                 else return Map.empty
-    database <- makeDatabase exts conf
-    let (fMakeTags, fSort) = if hhTagstype conf == EmacsTags
+    database <- makeDatabase exts conf'
+    let (fMakeTags, fSort) = if hhTagstype conf' == EmacsTags
                              then (makeEmacsTags, id)
                              else (makeVimTags, sort)
-        tags = fSort $ concatMap (\mod' -> fMakeTags (moduleFile mod')
-                                                     (moduleScope database mod')
-                                                     lineInfo)
-                                 (Map.elems database)
-    handle <- case hhOutput conf of
+        makeTags x = fMakeTags (moduleFile x)
+                               (moduleScope database x)
+                               lineInfo
+    ts <- do
+      ts <- mapM makeTags $ Map.elems database
+      return (fSort $ concat ts)
+
+    handle <- case hhOutput conf' of
                 Nothing -> return stdout
                 Just file -> openFile file WriteMode
 
-    mapM_ (hPutStrLn handle) tags
+    mapM_ (hPutStrLn handle) ts
 
-    case hhOutput conf of
+    case hhOutput conf' of
       Nothing -> return ()
       _ -> hClose handle
