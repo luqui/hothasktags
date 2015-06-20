@@ -14,7 +14,6 @@ import Control.Monad
 import qualified Data.Array.Unboxed as A
 import Data.List (sort)
 import Data.Maybe (fromMaybe)
-import System.FilePath.Posix (takeFileName)
 import Data.List.Split (endBy)
 
 type Database = Map.Map String (L.Module L.SrcSpanInfo)
@@ -148,17 +147,11 @@ moduleScope :: Database -> L.Module L.SrcSpanInfo -> Map.Map String Defn
 moduleScope db mod'@(L.Module _ modhead _ imports _) =
   Map.unions $ moduleItself : localDecls mod' : map extractImport imports
     where
-      moduleItself = moduleDecl modhead `Map.union` enclosingFilename mod'
+      moduleItself = moduleDecl modhead
 
       moduleDecl (Just (L.ModuleHead l (L.ModuleName _ name) _ _)) =
         Map.singleton name (getLoc l)
       moduleDecl _ = Map.empty
-
-      enclosingFilename (L.Module l _ _ _ _) =
-        Map.singleton (filename l) (getLoc l)
-      enclosingFilename _ = Map.empty
-
-      filename (L.SrcSpanInfo (L.SrcSpan file _ _ _ _) _) = takeFileName file
 
       extractImport decl@(L.ImportDecl { L.importModule = L.ModuleName _ name
                                        , L.importSpecs = spec
@@ -264,15 +257,17 @@ makeDatabase exts conf =
         result <- L.parseFileContentsWithMode (mode file)
                     `fmap` haskellSource exts conf file
         case result of
-            L.ParseOk mod'@(L.Module _
-                            (Just (L.ModuleHead _ (L.ModuleName _ name) _ _))
-                            _ _ _) ->
-                return [(name, mod')]
+            L.ParseOk mod'@(L.Module _ moduleHead _ _ _) ->
+                return [(moduleName moduleHead, mod')]
             L.ParseFailed loc str' -> do
                 hPutStrLn stderr $ "Parse error: " ++  show loc ++ ": " ++ str'
                 return []
             _ -> return []
   where
+    moduleName (Just (L.ModuleHead _ (L.ModuleName _ name) _ _)) = name
+    -- for files without a module decl, i.e. implicit Main
+    moduleName Nothing = ""
+
     mode filename = L.ParseMode
       { L.parseFilename = filename
       , L.extensions = exts
