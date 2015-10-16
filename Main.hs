@@ -339,7 +339,8 @@ optParser = HotHasktags
        <> long "recursive"
        <> help "Recurse into directories")
     <*> many (strOption
-        ( long "exclude"
+        ( short 'x'
+       <> long "exclude"
        <> metavar "PATTERN"
        <> help "Files and directories to exclude"))
     <*> switch
