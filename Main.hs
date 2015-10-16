@@ -395,15 +395,17 @@ main = do
       [] -> liftM (\x -> conf { hhFiles = x })
                   $ stdinFileList (hhSplitOnNUL conf)
       _ -> return conf
-    lineInfo <- if hhTagstype conf' == EmacsTags
-                then emacsLineInfo $ hhFiles conf'
+    -- filter empty strings
+    let conf'' = conf' { hhFiles = filter (/= "") $ hhFiles conf' }
+    lineInfo <- if hhTagstype conf'' == EmacsTags
+                then emacsLineInfo $ hhFiles conf''
                 else return Map.empty
-    conf'' <- if hhRecurse conf'
-              then recursiveFiles (hhFiles conf') (hhExcludes conf')
-                   >>= \fs -> return (conf' { hhFiles = fs })
-              else return conf'
-    database <- makeDatabase exts conf''
-    let (fMakeTags, fSort) = if hhTagstype conf' == EmacsTags
+    conf''' <- if hhRecurse conf''
+              then recursiveFiles (hhFiles conf'') (hhExcludes conf'')
+                   >>= \fs -> return (conf'' { hhFiles = fs })
+              else return conf''
+    database <- makeDatabase exts conf'''
+    let (fMakeTags, fSort) = if hhTagstype conf''' == EmacsTags
                              then (makeEmacsTags, id)
                              else (makeVimTags, sort)
         makeTags x = fMakeTags (moduleFile x)
@@ -413,12 +415,12 @@ main = do
       ts <- mapM makeTags $ Map.elems database
       return (fSort $ concat ts)
 
-    handle <- case hhOutput conf'' of
+    handle <- case hhOutput conf''' of
                 Nothing -> return stdout
                 Just file -> openFile file WriteMode
 
     mapM_ (hPutStrLn handle) ts
 
-    case hhOutput conf' of
+    case hhOutput conf''' of
       Nothing -> return ()
       _ -> hClose handle
