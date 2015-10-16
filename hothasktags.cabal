@@ -36,6 +36,8 @@ executable hothasktags
         array,
         containers,
         filepath,
+        filemanip,
+        Glob,
         haskell-src-exts >= 1.14,
         cpphs >= 1.11 && < 1.20,
         optparse-applicative,
