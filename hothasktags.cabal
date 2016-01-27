@@ -1,5 +1,5 @@
 name: hothasktags
-version: 0.3.4
+version: 0.3.5
 cabal-version: >= 1.6
 build-type: Simple
 author: Luke Palmer <lrpalmer@gmail.com>
