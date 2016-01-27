@@ -23,7 +23,7 @@ description:
     Usage is easy, just give hothasktags the names of all the haskell sources you
     want to index and redirect into a tags file.  For example:
     .
-    > find . | egrep '\.hs$' | xargs hothasktags > tags
+    > find . -name '*.hs' | xargs hothasktags > tags
     .
     will index all the hs files under the current directory.
 homepage: http://github.com/luqui/hothasktags
