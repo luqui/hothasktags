@@ -1,4 +1,5 @@
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE PackageImports #-}
 
 module Main where
 
@@ -15,6 +16,8 @@ import qualified Data.Array.Unboxed as A
 import Data.List (sort)
 import Data.Maybe (fromMaybe)
 import Data.List.Split (endBy)
+import System.FilePath.Find
+import "Glob" System.FilePath.Glob
 
 type Database = Map.Map String (L.Module L.SrcSpanInfo)
 type LineInfo = Map.Map FilePath (A.Array Int (HandlePosition, String))
@@ -288,6 +291,8 @@ data HotHasktags = HotHasktags
     { hhLanguage, hhDefine, hhInclude, hhCpphs :: [String]
     , hhOutput :: Maybe FilePath
     , hhTagstype :: TagsType
+    , hhRecurse :: Bool
+    , hhExcludes :: [String]
     , hhSplitOnNUL :: Bool
     , hhFiles :: [FilePath]
     }
@@ -330,6 +335,15 @@ optParser = HotHasktags
           ( short 'e'
          <> help "Emit Emacs tags" )
     <*> switch
+        ( short 'R'
+       <> long "recursive"
+       <> help "Recurse into directories")
+    <*> many (strOption
+        ( short 'x'
+       <> long "exclude"
+       <> metavar "PATTERN"
+       <> help "Files and directories to exclude"))
+    <*> switch
         ( short '0'
        <> long "null"
        <> help "Split stdin on NUL instead of newline" )
@@ -357,6 +371,14 @@ stdinFileList onNull = liftM splitter getContents
   where
     splitter = if onNull then endBy "\0" else lines
 
+recursiveFiles :: [FilePath] -> [String] -> IO [FilePath]
+recursiveFiles files pats = concat <$> mapM findFiles files
+  where
+    findFiles = find excludes (extension ==? ".hs" &&? excludes)
+    pats' = map compile pats -- filemanip's globbing doesnt work properly
+    excludes = foldr (\pat b -> b ||? globMatch pat filePath) (return False) pats' ==? False
+    globMatch pat s = liftM (match pat) s
+
 main :: IO ()
 main = do
     let opts = info (helper <*> optParser)
@@ -374,11 +396,17 @@ main = do
       [] -> liftM (\x -> conf { hhFiles = x })
                   $ stdinFileList (hhSplitOnNUL conf)
       _ -> return conf
-    lineInfo <- if hhTagstype conf' == EmacsTags
-                then emacsLineInfo $ hhFiles conf'
+    -- filter empty strings
+    let conf'' = conf' { hhFiles = filter (/= "") $ hhFiles conf' }
+    lineInfo <- if hhTagstype conf'' == EmacsTags
+                then emacsLineInfo $ hhFiles conf''
                 else return Map.empty
-    database <- makeDatabase exts conf'
-    let (fMakeTags, fSort) = if hhTagstype conf' == EmacsTags
+    conf''' <- if hhRecurse conf''
+              then recursiveFiles (hhFiles conf'') (hhExcludes conf'')
+                   >>= \fs -> return (conf'' { hhFiles = fs })
+              else return conf''
+    database <- makeDatabase exts conf'''
+    let (fMakeTags, fSort) = if hhTagstype conf''' == EmacsTags
                              then (makeEmacsTags, id)
                              else (makeVimTags, sort)
         makeTags x = fMakeTags (moduleFile x)
@@ -388,12 +416,12 @@ main = do
       ts <- mapM makeTags $ Map.elems database
       return (fSort $ concat ts)
 
-    handle <- case hhOutput conf' of
+    handle <- case hhOutput conf''' of
                 Nothing -> return stdout
                 Just file -> openFile file WriteMode
 
     mapM_ (hPutStrLn handle) ts
 
-    case hhOutput conf' of
+    case hhOutput conf''' of
       Nothing -> return ()
       _ -> hClose handle
