@@ -275,6 +275,7 @@ makeDatabase exts conf =
       { L.parseFilename = filename
       , L.extensions = exts
       , L.ignoreLanguagePragmas = False
+      , L.ignoreFunctionArity = True
       , L.ignoreLinePragmas = False
       , L.fixities = Nothing
       , L.baseLanguage = L.Haskell2010
