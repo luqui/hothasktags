@@ -131,8 +131,8 @@ exported mod'@(L.Module _
                       (Just (L.ExportSpecList _ specs)))) _ _ _) name =
     any (matchesSpec name) specs
   where
-    matchesSpec nm (L.EVar _ _ (L.UnQual _ (L.Ident _ name'))) = nm == name'
-    matchesSpec nm (L.EAbs _ (L.UnQual _ (L.Ident _ name'))) = nm == name'
+    matchesSpec nm (L.EVar _ (L.UnQual _ (L.Ident _ name'))) = nm == name'
+    matchesSpec nm (L.EAbs _ _ (L.UnQual _ (L.Ident _ name'))) = nm == name'
     matchesSpec nm (L.EThingAll _ (L.UnQual _ (L.Ident _ name'))) =
       nm == name' || (nm `elem` thingMembers mod' name')
     matchesSpec nm (L.EThingWith _ (L.UnQual _ (L.Ident _ name')) cnames) =
@@ -189,8 +189,8 @@ moduleScope db mod'@(L.Module _ modhead _ imports _) =
 
           normalExports = modExports db name
 
-          specName (L.IVar _ _ (L.Ident _ name')) = [name']
-          specName (L.IAbs _ (L.Ident _ name')) = [name']
+          specName (L.IVar _ (L.Ident _ name')) = [name']
+          specName (L.IAbs _ _ (L.Ident _ name')) = [name']
           -- XXX incorrect, need its member names
           specName (L.IThingAll _ (L.Ident _ name')) = [name']
           specName (L.IThingWith _ (L.Ident _ name') cnames) =
