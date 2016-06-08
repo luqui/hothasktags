@@ -399,13 +399,13 @@ main = do
       _ -> return conf
     -- filter empty strings
     let conf'' = conf' { hhFiles = filter (/= "") $ hhFiles conf' }
-    lineInfo <- if hhTagstype conf'' == EmacsTags
-                then emacsLineInfo $ hhFiles conf''
-                else return Map.empty
     conf''' <- if hhRecurse conf''
               then recursiveFiles (hhFiles conf'') (hhExcludes conf'')
                    >>= \fs -> return (conf'' { hhFiles = fs })
               else return conf''
+    lineInfo <- if hhTagstype conf''' == EmacsTags
+                then emacsLineInfo $ hhFiles conf'''
+                else return Map.empty
     database <- makeDatabase exts conf'''
     let (fMakeTags, fSort) = if hhTagstype conf''' == EmacsTags
                              then (makeEmacsTags, id)
