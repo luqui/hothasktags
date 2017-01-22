@@ -40,7 +40,7 @@ executable hothasktags
         Glob,
         haskell-src-exts >= 1.17 && < 1.18,
         cpphs >= 1.11 && < 1.21,
-        optparse-applicative,
+        optparse-applicative >= 0.13,
         split
     main-is: Main.hs
     ghc-options: -W
