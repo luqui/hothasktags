@@ -15,6 +15,7 @@ import Control.Monad
 import qualified Data.Array.Unboxed as A
 import Data.List (sort)
 import Data.Maybe (fromMaybe)
+import Data.Monoid ((<>))
 import Data.List.Split (endBy)
 import System.FilePath.Find
 import "Glob" System.FilePath.Glob
