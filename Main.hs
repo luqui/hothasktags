@@ -4,7 +4,7 @@
 module Main where
 
 import Options.Applicative
-import qualified Language.Haskell.Exts.Annotated as L
+import qualified Language.Haskell.Exts as L
 import System.IO
 import GHC.IO.Handle (HandlePosition)
 import qualified Data.Map.Strict as Map
@@ -30,7 +30,7 @@ localDecls :: L.Module L.SrcSpanInfo -> Map.Map String Defn
 localDecls (L.Module _ _ _ _ decls) = Map.fromList $ concatMap extract decls
     where
     extract (L.TypeDecl _ hd _) = extractDeclHead hd
-    extract (L.TypeFamDecl _ hd _) = extractDeclHead hd
+    extract (L.TypeFamDecl _ hd _ _) = extractDeclHead hd
     extract (L.DataDecl _ _ _ hd decls' _) =
       extractDeclHead hd ++ concatMap extractQualConDecl decls'
     extract (L.GDataDecl _ _ _ hd _ decls' _) =
@@ -73,7 +73,7 @@ localDecls (L.Module _ _ _ _ decls) = Map.fromList $ concatMap extract decls
 
     extractClassDecl (L.ClsDecl _ decl) = extract decl
     extractClassDecl (L.ClsDataFam _ _ hd _) = extractDeclHead hd
-    extractClassDecl (L.ClsTyFam _ hd _) = extractDeclHead hd
+    extractClassDecl (L.ClsTyFam _ hd _ _) = extractDeclHead hd
     extractClassDecl _ = []
 
     extractName (L.Ident loc name) = [(name, getLoc loc)]
@@ -134,9 +134,7 @@ exported mod'@(L.Module _
   where
     matchesSpec nm (L.EVar _ (L.UnQual _ (L.Ident _ name'))) = nm == name'
     matchesSpec nm (L.EAbs _ _ (L.UnQual _ (L.Ident _ name'))) = nm == name'
-    matchesSpec nm (L.EThingAll _ (L.UnQual _ (L.Ident _ name'))) =
-      nm == name' || (nm `elem` thingMembers mod' name')
-    matchesSpec nm (L.EThingWith _ (L.UnQual _ (L.Ident _ name')) cnames) =
+    matchesSpec nm (L.EThingWith _ _ (L.UnQual _ (L.Ident _ name')) cnames) =
       nm == name' || any (matchesCName nm) cnames
     -- XXX this is wrong, moduleScope handles it though
     matchesSpec _ (L.EModuleContents _ (L.ModuleName _ _)) = False
