@@ -377,7 +377,7 @@ recursiveFiles :: [FilePath] -> [String] -> IO [FilePath]
 recursiveFiles files pats = concat <$> mapM findFiles files
   where
     findFiles = find excludes (extension ==? ".hs" &&? excludes)
-    pats' = map compile pats -- filemanip's globbing doesnt work properly
+    pats' = map compile pats -- filemanip's globbing doesn't work properly
     excludes = foldr (\pat b -> b ||? globMatch pat filePath) (return False) pats' ==? False
     globMatch pat s = liftM (match pat) s
 
