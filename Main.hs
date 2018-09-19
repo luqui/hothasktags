@@ -127,7 +127,7 @@ modExports db modname = case Map.lookup modname db of
     Just mod' -> Map.filterWithKey (\k _ -> exported mod' k) (localDecls mod')
 
 exported :: L.Module L.SrcSpanInfo -> String -> Bool
-exported mod'@(L.Module _
+exported (L.Module _
                (Just (L.ModuleHead _ _ _
                       (Just (L.ExportSpecList _ specs)))) _ _ _) name =
     any (matchesSpec name) specs

@@ -1,5 +1,5 @@
 name: hothasktags
-version: 0.3.8
+version: 0.3.9
 cabal-version: >= 1.6
 build-type: Simple
 author: Luke Palmer <lrpalmer@gmail.com>
@@ -38,9 +38,9 @@ executable hothasktags
         filepath,
         filemanip,
         Glob,
-        haskell-src-exts >= 1.18.2 && < 1.20,
+        haskell-src-exts >= 1.18.2 && < 1.21,
         cpphs >= 1.11 && < 1.21,
         optparse-applicative >= 0.13,
         split
     main-is: Main.hs
-    ghc-options: -W
+    ghc-options: -Wall
