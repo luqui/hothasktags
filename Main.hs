@@ -19,6 +19,7 @@ import Data.Monoid ((<>))
 import Data.List.Split (endBy)
 import System.FilePath.Find
 import "Glob" System.FilePath.Glob
+import Data.Monoid
 
 type Database = Map.Map String (L.Module L.SrcSpanInfo)
 type LineInfo = Map.Map FilePath (A.Array Int (HandlePosition, String))
