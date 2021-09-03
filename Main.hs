@@ -69,7 +69,7 @@ localDecls (L.Module _ _ _ _ decls) = Map.fromList $ concatMap extract decls
 
     extractFieldDecl (L.FieldDecl _ names _) = concatMap extractName names
 
-    extractGadtDecl (L.GadtDecl _ name _ _) = extractName name
+    extractGadtDecl (L.GadtDecl _ name _ _ _ _) = extractName name
 
     extractClassDecl (L.ClsDecl _ decl) = extract decl
     extractClassDecl (L.ClsDataFam _ _ hd _) = extractDeclHead hd
@@ -102,7 +102,7 @@ thingMembers (L.Module _ _ _ _ decls) name = concatMap extract decls
       name' : concatMap getField flds
     getQualConDecl _ = []
 
-    getGadtDecl (L.GadtDecl _ name' _ _) = getName name'
+    getGadtDecl (L.GadtDecl _ name' _ _ _ _) = getName name'
 
     getField (L.FieldDecl _ names _) = concatMap getName names
 
