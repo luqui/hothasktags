@@ -38,7 +38,7 @@ executable hothasktags
         filepath,
         filemanip,
         Glob,
-        haskell-src-exts >= 1.18.2 && < 1.21,
+        haskell-src-exts >= 1.21 && < 1.24,
         cpphs >= 1.11 && < 1.21,
         optparse-applicative >= 0.13,
         split
